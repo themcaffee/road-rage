@@ -39,32 +39,29 @@ class SumoEnv(gym.Env):
         self.observation_space = spaces.Box(low=np.array(low_observation_space), high=np.array(high_observation_space))
         self.seed()
         self.nogui = True
-
+        self.prediction_type = "DQN"  # DQN, random, or timed
+        self.debug = False
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-
     def step(self, action):
         self.cur_step += 1
-        if self.cur_step % 10 == 0:
-            print("step {} {} {} {}".format(str(self.cur_step), str(action), traci.simulation.getMinExpectedNumber(), self.get_total_vehicle_speed()))
+        if self.debug and self.cur_step % 10 == 0:
+            print("step {} {} {} {}".format(str(self.cur_step), str(action), traci.simulation.getMinExpectedNumber(), self._get_total_vehicle_speed()))
         assert self.action_space.contains(action)
 
         traci.simulationStep()
-        total_speed = self.get_total_vehicle_speed()
-        cars_in_lanes = self.get_lanes_info()
+        total_speed = self._get_total_vehicle_speed()
+        cars_in_lanes = self._get_lanes_info()
 
-        if action == 0:
-            # Switch to north-south
-            traci.trafficlight.setPhase("0", 3)
-        elif action == 1:
-            # Switch to east-west
-            traci.trafficlight.setPhase("0", 2)
-        else:
-            # Do nothing
-            pass
+        if self.prediction_type == "DQN":
+            self._dqn_action(action)
+        elif self.prediction_type == "random":
+            self._random_action()
+        elif self.prediction_type == "timed":
+            self._timed_action()
 
         # Check if simulation is finished
         finished = False
@@ -76,21 +73,54 @@ class SumoEnv(gym.Env):
         # Observation space, reward, finished
         return cars_in_lanes, total_speed, finished, {}
 
+    def _dqn_action(self, action):
+        if action == 0:
+            # Switch to north-south
+            traci.trafficlight.setPhase("0", 3)
+        elif action == 1:
+            # Switch to east-west
+            traci.trafficlight.setPhase("0", 2)
+        else:
+            # Do nothing
+            pass
+
+    def _random_action(self):
+        random_action = random.randrange(0, 2)
+        if random_action == 0:
+            # Switch to north-south
+            traci.trafficlight.setPhase("0", 3)
+        elif random_action == 1:
+            # Switch to east-west
+            traci.trafficlight.setPhase("0", 2)
+        else:
+            # Do nothing
+            pass
+
+    def _timed_action(self):
+        if traci.trafficlight.getPhase("0") == 2:
+            # we are not already switching
+            if traci.inductionloop.getLastStepVehicleNumber("0") > 0:
+                # there is a vehicle from the north, switch
+                traci.trafficlight.setPhase("0", 3)
+            else:
+                # otherwise try to keep green for EW
+                traci.trafficlight.setPhase("0", 2)
+
     def reset(self):
         self.cur_step = 0
         if self.nogui:
             self.sumoBinary = checkBinary('sumo')
         else:
             self.sumoBinary = checkBinary('sumo-gui')
-        self.generate_routefile()
+        self._generate_routefile()
         traci.start([self.sumoBinary, "-c", "sumoenv/data/cross.sumocfg", "--tripinfo-output", "tripinfo.xml"])
         traci.trafficlight.setPhase("0", 2)
         # Run one simulation step to get it started
         traci.simulationStep()
-        observation_space = self.get_lanes_info()
+        observation_space = self._get_lanes_info()
         return observation_space
 
-    def get_total_vehicle_speed(self):
+    def _get_total_vehicle_speed(self):
         total = 0
         vehicle_count = 0
         for veh_id in traci.vehicle.getIDList():
@@ -99,7 +129,7 @@ class SumoEnv(gym.Env):
             vehicle_count += 1
         return total / vehicle_count
 
-    def get_lanes_info(self):
+    def _get_lanes_info(self):
         """
         Returns the number of cars in each lane sorted by the lane id and the values of
         that returned as a list
@@ -112,7 +142,7 @@ class SumoEnv(gym.Env):
             sorted_lanes.append(lanes[key])
         return sorted_lanes
 
-    def generate_routefile(self):
+    def _generate_routefile(self):
         random.seed(42)  # make tests reproducible
         N = 3600  # number of time steps
         # demand per second from different directions

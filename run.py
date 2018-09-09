@@ -1,3 +1,5 @@
+import optparse
+
 import gym
 import sumoenv
 import numpy as np
@@ -14,8 +16,11 @@ from rl.memory import SequentialMemory
 ENV_NAME = "SumoEnv-v0"
 
 
-def main():
+def main(options):
     env = gym.make(ENV_NAME)
+    if options.gui:
+        env.nogui = False
+    options.prediction_type = options.type
     np.random.seed(123)
     env.seed(123)
     nb_actions = env.action_space.n
@@ -29,15 +34,15 @@ def main():
     dqn.compile(Adam(lr=1e-3), metrics=['mae'])
 
     # Begin training
-    print("Starting training..")
-    dqn.fit(env, nb_steps=10000, visualize=False, verbose=2)
+    print("=================== Starting training.. ==============================")
+    dqn.fit(env, nb_steps=10000, visualize=False, verbose=2, nb_max_episode_steps=1000)
 
     # After training is done, save the weights
-    print("Finished training, saving weights..")
+    print("=================== Finished training, saving weights.. ==============")
     dqn.save_weights('dqn_{}_weights.h5f'.format(ENV_NAME), overwrite=True)
 
     # Evaluate the model
-    print("Finished saving weights, evaluating model")
+    print("=================== Finished saving weights, evaluating model ========")
     dqn.test(env, nb_episodes=3, visualize=False, nb_max_episode_steps=1000, verbose=1)
 
 
@@ -57,5 +62,14 @@ def make_model(env, nb_actions):
     return model
 
 
+def get_options():
+    optParser = optparse.OptionParser()
+    optParser.add_option("--gui", action="store_true", default=False, help="Run the GUI version of sumo")
+    optParser.add_option("--type", default="DQN", help="The type of prediction to use")
+    options, args = optParser.parse_args()
+    return options
+
+
 if __name__ == "__main__":
-    main()
+    options = get_options()
+    main(options)
