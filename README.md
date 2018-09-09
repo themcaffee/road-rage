@@ -1,9 +1,9 @@
 # Traffic Rage
 
-Hate traffic? Me too. Traffic lights should be smarter and is a juicy
-optimization problem. This experiment uses reinforcement learning to
-dynamically control stop lights to optimize getting people where they
-want to go.
+Hate traffic? Me too. Traffic lights should be smarter and controlling
+them is a juicy optimization problem. This experiment uses reinforcement
+learning to dynamically control stop lights to optimize getting people
+where they want to go.
 
 
 ## Usage
