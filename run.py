@@ -1,7 +1,7 @@
 import optparse
 
 import gym
-import sumoenv
+import gym_sumo
 import numpy as np
 
 from keras.models import Sequential

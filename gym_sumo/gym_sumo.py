@@ -36,11 +36,12 @@ class SumoEnv(gym.Env):
             # The max number of cars in a lane is the total number of cars
             high_observation_space.append(self.num_cars)
 
-        self.observation_space = spaces.Box(low=np.array(low_observation_space), high=np.array(high_observation_space))
+        self.observation_space = spaces.Box(low=np.array(low_observation_space), high=np.array(high_observation_space), dtype="int")
         self.seed()
         self.nogui = True
         self.prediction_type = "DQN"  # DQN, random, or timed
         self.debug = False
+        self.write_tripinfo = False
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -113,7 +114,11 @@ class SumoEnv(gym.Env):
         else:
             self.sumoBinary = checkBinary('sumo-gui')
         self._generate_routefile()
-        traci.start([self.sumoBinary, "-c", "sumoenv/data/cross.sumocfg", "--tripinfo-output", "tripinfo.xml"])
+        traci_args = [self.sumoBinary, "-c", "gym_sumo/data/cross.sumocfg", "--no-warnings"]
+        if self.write_tripinfo:
+            traci_args.append("--tripinfo-output")
+            traci_args.append("tripinfo.xml")
+        traci.start(traci_args)
         traci.trafficlight.setPhase("0", 2)
         # Run one simulation step to get it started
         traci.simulationStep()
@@ -149,7 +154,7 @@ class SumoEnv(gym.Env):
         pWE = 1. / 10
         pEW = 1. / 11
         pNS = 1. / 30
-        with open("sumoenv/data/cross.rou.xml", "w") as routes:
+        with open("gym_sumo/data/cross.rou.xml", "w") as routes:
             print("""<routes>
                 <vType id="typeWE" accel="0.8" decel="4.5" sigma="0.5" length="5" minGap="2.5" maxSpeed="16.67" \
         guiShape="passenger"/>
