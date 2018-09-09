@@ -10,3 +10,20 @@ the fastest road network possible.
 To use you will need to [install sumo](http://sumo.dlr.de/wiki/Installing) and set $SUMO_HOME to the
 appropriate location. If you installed using a package manager this is
 probably `/usr/share/sumo`.
+
+
+## Configuration
+
+There are multiple variables on the environment that can be set that
+effect how it works.
+
+```
+# Display a GUI or not
+env.nogui
+# Type of prediction to use (DQN, random, or timed)
+env.prediction_type
+# To display verbose debug information
+env.debug
+# To write the tripinfo after every simulation
+env.write_tripinfo
+```
