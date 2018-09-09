@@ -54,7 +54,7 @@ def main(options):
     # Evaluate the model
     print("=================== Finished saving weights, evaluating model ========")
     res = dqn.test(env, nb_episodes=options.eval_episodes, visualize=False, nb_max_episode_steps=options.eval_max_steps, verbose=1)
-    pprint(res)
+    pprint(res.history)
 
 
 def make_model(env, nb_actions):
@@ -77,11 +77,16 @@ def get_options():
     optParser = optparse.OptionParser()
     optParser.add_option("--gui", action="store_true", default=False, help="Run the GUI version of sumo")
     optParser.add_option("--type", default="DQN", help="The type of prediction to use")
-    optParser.add_option("--training-steps", default=TRAINING_STEPS, type="int")
-    optParser.add_option("--training_max-steps", default=TRAINING_MAX_STEPS, type="int")
-    optParser.add_option("--training-warmup", default=TRAINING_WARMUP, type="int")
-    optParser.add_option("--eval-episodes", default=EVAL_EPISODES, type="int")
-    optParser.add_option("--eval-max-steps", default=EVAL_MAX_STEPS, type="int")
+    optParser.add_option("--training-steps", default=TRAINING_STEPS, type="int",
+                         help="The number of simulation steps to train for")
+    optParser.add_option("--training-max-steps", default=TRAINING_MAX_STEPS, type="int",
+                         help="The maximum number of steps during training per episode")
+    optParser.add_option("--training-warmup", default=TRAINING_WARMUP, type="int",
+                         help="Steps to take randomly before prediction")
+    optParser.add_option("--eval-episodes", default=EVAL_EPISODES, type="int",
+                         help="Number of episodes to evaluate for")
+    optParser.add_option("--eval-max-steps", default=EVAL_MAX_STEPS, type="int",
+                         help="Max simulation steps per episode during training")
     options, args = optParser.parse_args()
     return options
 
