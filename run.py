@@ -1,4 +1,5 @@
 import optparse
+from pprint import pprint
 
 import gym
 import gym_sumo
@@ -15,6 +16,15 @@ from rl.memory import SequentialMemory
 
 ENV_NAME = "SumoEnv-v0"
 
+# Default training configuration
+TRAINING_STEPS = 10000
+TRAINING_MAX_STEPS = 3000
+TRAINING_WARMUP = 200
+
+# Default evaluation configuration
+EVAL_EPISODES = 3
+EVAL_MAX_STEPS = 3000
+
 
 def main(options):
     env = gym.make(ENV_NAME)
@@ -29,13 +39,13 @@ def main(options):
     # Configure and compile the agent
     memory = SequentialMemory(limit=50000, window_length=1)
     policy = BoltzmannQPolicy()
-    dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=200,
+    dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=options.training_warmup,
                    target_model_update=1e-2, policy=policy)
     dqn.compile(Adam(lr=1e-3), metrics=['mae'])
 
     # Begin training
     print("=================== Starting training.. ==============================")
-    dqn.fit(env, nb_steps=10000, visualize=False, verbose=2, nb_max_episode_steps=1000)
+    dqn.fit(env, nb_steps=options.training_steps, visualize=False, verbose=2, nb_max_episode_steps=options.training_max_steps)
 
     # After training is done, save the weights
     print("=================== Finished training, saving weights.. ==============")
@@ -43,7 +53,8 @@ def main(options):
 
     # Evaluate the model
     print("=================== Finished saving weights, evaluating model ========")
-    dqn.test(env, nb_episodes=3, visualize=False, nb_max_episode_steps=1000, verbose=1)
+    res = dqn.test(env, nb_episodes=options.eval_episodes, visualize=False, nb_max_episode_steps=options.eval_max_steps, verbose=1)
+    pprint(res)
 
 
 def make_model(env, nb_actions):
@@ -66,6 +77,11 @@ def get_options():
     optParser = optparse.OptionParser()
     optParser.add_option("--gui", action="store_true", default=False, help="Run the GUI version of sumo")
     optParser.add_option("--type", default="DQN", help="The type of prediction to use")
+    optParser.add_option("--training-steps", default=TRAINING_STEPS, type="int")
+    optParser.add_option("--training_max-steps", default=TRAINING_MAX_STEPS, type="int")
+    optParser.add_option("--training-warmup", default=TRAINING_WARMUP, type="int")
+    optParser.add_option("--eval-episodes", default=EVAL_EPISODES, type="int")
+    optParser.add_option("--eval-max-steps", default=EVAL_MAX_STEPS, type="int")
     options, args = optParser.parse_args()
     return options
 
