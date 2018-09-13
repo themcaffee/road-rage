@@ -2,11 +2,15 @@ import optparse
 from pprint import pprint
 
 import gym
+from keras import Input
+from rl.agents import DDPGAgent
+from rl.random import OrnsteinUhlenbeckProcess
+
 import gym_sumo
 import numpy as np
 
-from keras.models import Sequential
-from keras.layers import Dense, Activation, Flatten
+from keras.models import Sequential, Model
+from keras.layers import Dense, Activation, Flatten, Concatenate
 from keras.optimizers import Adam
 
 from rl.agents.dqn import DQNAgent
@@ -33,15 +37,19 @@ def main(options):
     options.prediction_type = options.type
     np.random.seed(123)
     env.seed(123)
-    nb_actions = env.action_space.n
-    model = make_model(env, nb_actions)
+    nb_actions = env.action_space.shape[0]
+
+    actor = make_actor(env, nb_actions)
+
+    critic, action_input, observation_input = make_critic(env, nb_actions)
 
     # Configure and compile the agent
     memory = SequentialMemory(limit=50000, window_length=1)
-    policy = BoltzmannQPolicy()
-    dqn = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=options.training_warmup,
-                   target_model_update=1e-2, policy=policy)
-    dqn.compile(Adam(lr=1e-3), metrics=['mae'])
+    random_process = OrnsteinUhlenbeckProcess(size=nb_actions, theta=.15, mu=0., sigma=.3)
+    dqn = DDPGAgent(nb_actions=nb_actions, actor=actor, critic=critic, critic_action_input=action_input,
+                    memory=memory, nb_steps_warmup_critic=options.training_warmup, nb_steps_warmup_actor=options.training_warmup,
+                    random_process=random_process, gamma=.99, target_model_update=1e-3)
+    dqn.compile(Adam(lr=.001, clipnorm=1.), metrics=['mae'])
 
     # Begin training
     print("=================== Starting training.. ==============================")
@@ -57,7 +65,7 @@ def main(options):
     pprint(res.history)
 
 
-def make_model(env, nb_actions):
+def make_actor(env, nb_actions):
     # Build a simple model
     model = Sequential()
     model.add(Flatten(input_shape=(1,) + env.observation_space.shape))
@@ -71,6 +79,23 @@ def make_model(env, nb_actions):
     model.add(Activation('linear'))
     print(model.summary())
     return model
+
+
+def make_critic(env, nb_actions):
+    action_input = Input(shape=(nb_actions,), name='action_input')
+    observation_input = Input(shape=(1,) + env.observation_space.shape, name='observation_input')
+    flattened_observation = Flatten()(observation_input)
+    x = Concatenate()([action_input, flattened_observation])
+    x = Dense(32)(x)
+    x = Activation('relu')(x)
+    x = Dense(32)(x)
+    x = Activation('relu')(x)
+    x = Dense(32)(x)
+    x = Activation('relu')(x)
+    x = Dense(1)(x)
+    x = Activation('linear')(x)
+    critic = Model(inputs=[action_input, observation_input], outputs=x)
+    return critic, action_input, observation_input
 
 
 def get_options():

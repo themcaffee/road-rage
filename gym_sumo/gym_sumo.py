@@ -4,6 +4,7 @@ import random
 
 import gym
 from gym import error, spaces, utils
+from gym.spaces import Tuple
 from  gym.utils import seeding
 import numpy as np
 
@@ -19,35 +20,63 @@ from sumolib import checkBinary  # noqa
 import traci  # noqa
 
 
+SCENARIO_LOCATION = "../LuSTScenario/scenario/due.static.sumocfg"
+
+
 class SumoEnv(gym.Env):
     def __init__(self):
+        # If the visualization should be displayed
+        self.nogui = True
+        # The type of prediction to do
+        # TODO move this out of the environment
+        self.prediction_type = "DQN"  # DQN, random, or timed
+        # If debug information should be written
+        self.debug = False
+        # If all of the trip information should be output to a file at the end
+        self.write_tripinfo = False
+        # The current simulation step we're on
         self.cur_step = 0
+        # If this is the first load don't load for the next simulation
+        self.first = False
+
+        # Load sumo scenario to get lane and light information
+        self._start_traci(set_first=True)
+        self.num_lanes = traci.lane.getIDCount()
+        self.num_lights = traci.trafficlight.getIDCount()
+        print("num_lanes: {}    num_lights: {}".format(self.num_lanes, self.num_lights))
+
+        # Number of actions that can be performed on a light
         self.actions = 3
-        self.action_space = spaces.Discrete(self.actions)
-        self.num_cars = 4
+        low_action_space = []
+        high_action_space = []
+        for i in range(self.num_lights):
+            low_action_space.append(0)
+            high_action_space.append(self.actions)
+        self.action_space = spaces.Box(low=np.array(low_action_space), high=np.array(high_action_space), dtype="int")
+
+        # The maximum number of cars that can be in a lane
+        # TODO set this correctly
+        self.max_cars = 50
 
         # Create an array with the number of dimensions for every lane in the map
-        self.num_lanes = 48
         low_observation_space = []
         for i in range(self.num_lanes):
             low_observation_space.append(0)
         high_observation_space = []
         for i in range(self.num_lanes):
             # The max number of cars in a lane is the total number of cars
-            high_observation_space.append(self.num_cars)
-
+            high_observation_space.append(self.max_cars)
         self.observation_space = spaces.Box(low=np.array(low_observation_space), high=np.array(high_observation_space), dtype="int")
+
+        # Seed the random variables
         self.seed()
-        self.nogui = True
-        self.prediction_type = "DQN"  # DQN, random, or timed
-        self.debug = False
-        self.write_tripinfo = False
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
     def step(self, action):
+        print("Action: {}".format(action))
         self.cur_step += 1
         if self.debug and self.cur_step % 10 == 0:
             print("step {} {} {} {}".format(str(self.cur_step), str(action), traci.simulation.getMinExpectedNumber(), self._get_total_vehicle_speed()))
@@ -109,21 +138,30 @@ class SumoEnv(gym.Env):
 
     def reset(self):
         self.cur_step = 0
+        self._start_traci()
+        # traci.trafficlight.setPhase("0", 2)
+        observation_space = self._get_lanes_info()
+        return observation_space
+
+    def _start_traci(self, set_first=False):
+        # Don't reinitialize traci for the first episode
+        if self.first:
+            self.first = False
+            return
+        if set_first:
+            self.first = True
+
         if self.nogui:
             self.sumoBinary = checkBinary('sumo')
         else:
             self.sumoBinary = checkBinary('sumo-gui')
-        self._generate_routefile()
-        traci_args = [self.sumoBinary, "-c", "gym_sumo/data/cross.sumocfg", "--no-warnings"]
+        traci_args = [self.sumoBinary, "-c", SCENARIO_LOCATION, "--no-warnings"]
         if self.write_tripinfo:
             traci_args.append("--tripinfo-output")
             traci_args.append("tripinfo.xml")
         traci.start(traci_args)
-        traci.trafficlight.setPhase("0", 2)
         # Run one simulation step to get it started
         traci.simulationStep()
-        observation_space = self._get_lanes_info()
-        return observation_space
 
     def _get_total_vehicle_speed(self):
         total = 0
@@ -146,6 +184,12 @@ class SumoEnv(gym.Env):
         for key in sorted(lanes.keys()):
             sorted_lanes.append(lanes[key])
         return sorted_lanes
+
+    def _get_lights_count(self):
+        """
+        Returns the number of red lights in the scenario
+        """
+        return len()
 
     def _generate_routefile(self):
         random.seed(42)  # make tests reproducible
